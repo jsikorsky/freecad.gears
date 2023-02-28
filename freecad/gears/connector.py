@@ -60,61 +60,85 @@ class GearConnector(object):
 
     def onChanged(self, fp, prop):
         # fp.angle2 = fp.master_gear.Placement.Rotation.Angle
-        if isinstance(fp.master_gear.Proxy, InvoluteGear) and isinstance(fp.slave_gear.Proxy, InvoluteGear):
-            angle_master = fp.master_gear.Placement.Rotation.Angle * sum(fp.master_gear.Placement.Rotation.Axis)
-            dw_master = fp.master_gear.dw
-            dw_slave = fp.slave_gear.dw
+
+        print("Master: {}".format(fp.master_gear) )
+        print("Slave: {}".format(fp.slave_gear) )
+        #print("Slave map mode: {}".format(fp.slave_gear.MapMode) )
+        from PySide import QtGui
+        reply = QtGui.QMessageBox.information(None, "Apollo program", "Houston, we have a problem")
+        assert reply is QtGui.QMessageBox.StandardButton.Ok
+
+        if fp.slave_gear is None:
+          # GearConnector is being deleted right now
+          print("GearConnector is being deleted right now")
+          fp.slave_gear.Support = None
+          fp.slave_gear.MapMode = 'Deactivated'
+          fp.slave_gear.MapReversed = False
+          return
+
+        if fp.master_gear is None:
+          # GearConnector is deleted, nothing to do
+          return
+
+
+
+        fp.slave_gear.Support = fp.master_gear
+        fp.slave_gear.MapMode = 'ObjectXY'
+        fp.slave_gear.MapReversed = False
+
+        if type(fp.master_gear.Proxy) in (InvoluteGear, InternalInvoluteGear) and \
+           type(fp.slave_gear.Proxy) in (InvoluteGear, InternalInvoluteGear):
+
+          if ( type(fp.master_gear.Proxy), type(fp.slave_gear.Proxy) ) == (InternalInvoluteGear, InternalInvoluteGear):
+            FreeCAD.Console.PrintError("Both internal gears, unable to connect\n")
+            return
+
+          dw_master = fp.master_gear.dw
+          dw_slave = fp.slave_gear.dw
+
+
+          if ( type(fp.master_gear.Proxy), type(fp.slave_gear.Proxy) ) == (InvoluteGear, InvoluteGear):
+            # both gears external 
             dist = (dw_master + dw_slave) / 2
-            if fp.master_gear.shift != 0 or fp.slave_gear.shift != 0:
-                dist, alpha_w = compute_shifted_gears(
-                    fp.master_gear.module,
-                    np.deg2rad(fp.master_gear.pressure_angle.Value),
-                    fp.master_gear.teeth,
-                    fp.slave_gear.teeth,
-                    fp.master_gear.shift,
-                    fp.slave_gear.shift)
-
-            mat0 = FreeCAD.Matrix()  # unity matrix
-            trans = FreeCAD.Vector(dist)
-            mat0.move(trans)
-            rot = FreeCAD.Rotation(FreeCAD.Vector(0,0,1), fp.angle1).toMatrix()
             angle2 = dw_master / dw_slave * fp.angle1.Value
-            angle4 = dw_master / dw_slave * np.rad2deg(angle_master)
-            rot2 = FreeCAD.Rotation(FreeCAD.Vector(0,0,1), angle2).toMatrix()
-            angle3 = abs(fp.slave_gear.teeth % 2 - 1) * 180. / fp.slave_gear.teeth
-            rot3 = FreeCAD.Rotation(FreeCAD.Vector(0,0,1), angle3).toMatrix()
-            rot4 = FreeCAD.Rotation(FreeCAD.Vector(0,0,1), -angle4).toMatrix()
-            mat1 = rot * mat0 * rot2 * rot3 * rot4
-            mat1.move(fp.master_gear.Placement.Base)
-            fp.slave_gear.Placement = mat1
 
-        if isinstance(fp.master_gear.Proxy, InternalInvoluteGear) and isinstance(fp.slave_gear.Proxy, InvoluteGear):
-            angle_master = fp.master_gear.Placement.Rotation.Angle * sum(fp.master_gear.Placement.Rotation.Axis)
-            dw_master = fp.master_gear.dw
-            dw_slave = fp.slave_gear.dw
+            # rotate half a tooth if fp.slave_gear.teeth is even
+            if ( fp.slave_gear.teeth % 2 == 0 ):
+              angle3 = 360 / fp.slave_gear.teeth / 2
+            else:
+              angle3 = 0
+            rot3 = FreeCAD.Rotation(FreeCAD.Vector(0,0,1), angle3).toMatrix()
+
+          else:
+            #one is internal gear
             dist = (dw_master - dw_slave) / 2
-            if fp.master_gear.shift != 0 or fp.slave_gear.shift != 0:
-                dist, alpha_w = compute_shifted_gears(
-                    fp.master_gear.module,
-                    np.deg2rad(fp.master_gear.pressure_angle.Value),
-                    fp.master_gear.teeth,
-                    fp.slave_gear.teeth,
-                    fp.master_gear.shift,
-                    fp.slave_gear.shift)
-
-            mat0 = FreeCAD.Matrix()  # unity matrix
-            trans = FreeCAD.Vector(dist)
-            mat0.move(trans)
-            rot = FreeCAD.Rotation(FreeCAD.Vector(0,0,1), fp.angle1).toMatrix()
             angle2 = -dw_master / dw_slave * fp.angle1.Value
-            angle4 = -dw_master / dw_slave * np.rad2deg(angle_master)
-            rot2 = FreeCAD.Rotation(FreeCAD.Vector(0,0,1), angle2).toMatrix()
-            angle3 = abs(fp.slave_gear.teeth % 2 - 1) * 180. / fp.slave_gear.teeth
-            rot3 = FreeCAD.Rotation(FreeCAD.Vector(0,0,1), angle3).toMatrix()
-            rot4 = FreeCAD.Rotation(FreeCAD.Vector(0,0,1), -angle4).toMatrix()
-            mat1 = rot * mat0 * rot2 * rot3 * rot4
-            mat1.move(fp.master_gear.Placement.Base)
-            fp.slave_gear.Placement = mat1
+            rot3 = FreeCAD.Rotation(FreeCAD.Vector(0,0,1), 0).toMatrix()
+
+          if fp.master_gear.shift != 0 or fp.slave_gear.shift != 0:
+              dist, alpha_w = compute_shifted_gears(
+                  fp.master_gear.module,
+                  np.deg2rad(fp.master_gear.pressure_angle.Value),
+                  fp.master_gear.teeth,
+                  fp.slave_gear.teeth,
+                  fp.master_gear.shift,
+                  fp.slave_gear.shift)
+
+          # distance between gears
+          mat0 = FreeCAD.Matrix()  # unity matrix
+          trans = FreeCAD.Vector(dist)
+          mat0.move(trans)
+
+          # rotation by GearConnector angle1 - slave around master
+          rot = FreeCAD.Rotation(FreeCAD.Vector(0,0,1), fp.angle1).toMatrix()
+
+          # rotation by GearConnector angle1 - slave around own axis
+          rot2 = FreeCAD.Rotation(FreeCAD.Vector(0,0,1), angle2).toMatrix()
+
+          #rot3 = FreeCAD.Rotation(FreeCAD.Vector(0,0,1), angle3).toMatrix()
+
+          mat1 = rot * mat0 * rot2 * rot3
+          fp.slave_gear.AttachmentOffset = mat1
 
         if ((isinstance(fp.master_gear.Proxy, InvoluteGear) and isinstance(fp.slave_gear.Proxy, InvoluteGearRack))
             or (isinstance(fp.master_gear.Proxy, CycloidGear) and isinstance(fp.slave_gear.Proxy, CycloidGearRack))):
@@ -129,9 +153,10 @@ class GearConnector(object):
             mat2 = FreeCAD.Matrix()
             mat2.move(FreeCAD.Vector(0, -np.deg2rad(fp.angle2.Value) * dw_master / 2, 0))
             rot = FreeCAD.Rotation(FreeCAD.Vector(0,0,1), fp.angle1).toMatrix()
-            mat3 = rot * mat2 *mat1 * mat0
-            mat3.move(fp.master_gear.Placement.Base)
-            fp.slave_gear.Placement = mat3
+            mat3 = rot * mat2 * mat1 * mat0
+            #mat3.move(fp.master_gear.Placement.Base)
+            #fp.slave_gear.Placement = mat3
+            fp.slave_gear.AttachmentOffset = mat3
 
         if isinstance(fp.master_gear.Proxy, CycloidGear) and isinstance(fp.slave_gear.Proxy, CycloidGear):
             angle_master = fp.master_gear.Placement.Rotation.Angle * sum(fp.master_gear.Placement.Rotation.Axis)

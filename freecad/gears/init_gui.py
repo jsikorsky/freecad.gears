@@ -59,8 +59,8 @@ class GearWorkbench(Workbench):
         from .commands import CreateHypoCycloidGear, CreateCycloidRack
         from .commands import CreateGearConnector
 
-        self.appendToolbar("Gear", self.commands)
-        self.appendMenu("Gear", self.commands)
+        self.appendToolbar("Gear customized", self.commands)
+        self.appendMenu("Gear customized", self.commands)
         # Gui.addIconPath(App.getHomePath()+"Mod/gear/icons/")
         Gui.addCommand('CreateInvoluteGear', CreateInvoluteGear())
         Gui.addCommand('CreateInternalInvoluteGear', CreateInternalInvoluteGear())
